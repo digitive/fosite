@@ -5,8 +5,10 @@ package fosite
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/ory/fosite/i18n"
 	"github.com/ory/x/errorsx"
@@ -42,10 +44,15 @@ import (
 //     client MUST authenticate with the authorization server as described
 //     in Section 3.2.1.
 func (f *Fosite) NewAccessRequest(ctx context.Context, r *http.Request, session Session) (_ AccessRequester, err error) {
+	start := time.Now()
 	ctx, span := trace.SpanFromContext(ctx).TracerProvider().Tracer("github.com/ory/fosite").Start(ctx, "Fosite.NewAccessRequest")
-	defer otelx.End(span, &err)
+	defer func() {
+		otelx.End(span, &err)
+		slog.Info("defer otelx.End()", "d", time.Since(start))
+	}()
 
 	accessRequest := NewAccessRequest(session)
+	slog.Info("internal call to NewAccessRequest", "d", time.Since(start))
 	accessRequest.Request.Lang = i18n.GetLangFromRequest(f.Config.GetMessageCatalog(ctx), r)
 
 	ctx = context.WithValue(ctx, RequestContextKey, r)
@@ -76,6 +83,7 @@ func (f *Fosite) NewAccessRequest(ctx context.Context, r *http.Request, session 
 		accessRequest.Client = client
 	}
 
+	slog.Info("authenticate client", "d", time.Since(start))
 	var found = false
 	for _, loader := range f.Config.GetTokenEndpointHandlers(ctx) {
 		// Is the loader responsible for handling the request?
@@ -107,5 +115,6 @@ func (f *Fosite) NewAccessRequest(ctx context.Context, r *http.Request, session 
 	if !found {
 		return nil, errorsx.WithStack(ErrInvalidRequest)
 	}
+	slog.Info("before return", "d", time.Since(start))
 	return accessRequest, nil
 }
