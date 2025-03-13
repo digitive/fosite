@@ -9,6 +9,7 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -57,15 +58,23 @@ func (f *Fosite) findClientPublicJWK(ctx context.Context, oidcClient OpenIDConne
 // AuthenticateClient authenticates client requests using the configured strategy
 // `Fosite.ClientAuthenticationStrategy`, if nil it uses `Fosite.DefaultClientAuthenticationStrategy`
 func (f *Fosite) AuthenticateClient(ctx context.Context, r *http.Request, form url.Values) (Client, error) {
+	start := time.Now()
+	defer func() {
+		slog.Info("in AuthenticateClient()", "d", time.Since(start))
+	}()
+
 	if s := f.Config.GetClientAuthenticationStrategy(ctx); s != nil {
+		slog.Info("GetClientAuthenticationStrategy")
 		return s(ctx, r, form)
 	}
+	slog.Info("DefaultClientAuthenticationStrategy")
 	return f.DefaultClientAuthenticationStrategy(ctx, r, form)
 }
 
 // DefaultClientAuthenticationStrategy provides the fosite's default client authentication strategy,
 // HTTP Basic Authentication and JWT Bearer
 func (f *Fosite) DefaultClientAuthenticationStrategy(ctx context.Context, r *http.Request, form url.Values) (Client, error) {
+	start := time.Now()
 	if assertionType := form.Get("client_assertion_type"); assertionType == clientAssertionJWTBearerType {
 		assertion := form.Get("client_assertion")
 		if len(assertion) == 0 {
@@ -197,10 +206,14 @@ func (f *Fosite) DefaultClientAuthenticationStrategy(ctx context.Context, r *htt
 		return nil, err
 	}
 
+	slog.Info("clientCredentialsFromRequest", "d", time.Since(start))
+
 	client, err := f.Store.GetClient(ctx, clientID)
 	if err != nil {
 		return nil, errorsx.WithStack(ErrInvalidClient.WithWrap(err).WithDebug(err.Error()))
 	}
+
+	slog.Info("getClient", "d", time.Since(start))
 
 	if oidcClient, ok := client.(OpenIDConnectClient); !ok {
 		// If this isn't an OpenID Connect client then we actually don't care about any of this, just continue!
@@ -221,6 +234,7 @@ func (f *Fosite) DefaultClientAuthenticationStrategy(ctx context.Context, r *htt
 		return nil, errorsx.WithStack(ErrInvalidClient.WithWrap(err).WithDebug(err.Error()))
 	}
 
+	slog.Info("checkClientSecret", "d", time.Since(start))
 	return client, nil
 }
 
