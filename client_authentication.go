@@ -260,11 +260,14 @@ func audienceMatchesTokenURL(claims jwt.MapClaims, tokenURL string) bool {
 }
 
 func (f *Fosite) checkClientSecret(ctx context.Context, client Client, clientSecret []byte) error {
+	start := time.Now()
 	var err error
 	err = f.Config.GetSecretsHasher(ctx).Compare(ctx, client.GetHashedSecret(), clientSecret)
 	if err == nil {
+		slog.Info("GetSecretsHasher.Compare()", "d", time.Since(start))
 		return nil
 	}
+
 	cc, ok := client.(ClientWithSecretRotation)
 	if !ok {
 		return err

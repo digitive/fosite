@@ -5,6 +5,8 @@ package fosite
 
 import (
 	"context"
+	"log/slog"
+	"time"
 
 	"github.com/ory/x/errorsx"
 
@@ -33,6 +35,10 @@ func (b *BCrypt) Hash(ctx context.Context, data []byte) ([]byte, error) {
 }
 
 func (b *BCrypt) Compare(ctx context.Context, hash, data []byte) error {
+	start := time.Now()
+	defer func() {
+		slog.Info("BCrypt Compare", "d", time.Since(start))
+	}()
 	if err := bcrypt.CompareHashAndPassword(hash, data); err != nil {
 		return errorsx.WithStack(err)
 	}
